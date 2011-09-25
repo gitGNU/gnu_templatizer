@@ -1,0 +1,6 @@
+give template name entry box an undo capability.
+give treeview an undo capability, so that we can get back a deleted template.
+template data is limited to 32k.  maybe use blobs in the db.
+remember the width of the pane for future runs.
+remember the size of the window for future runs.
+add translations

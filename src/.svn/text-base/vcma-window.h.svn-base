@@ -1,0 +1,142 @@
+//  Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#ifndef VCMA_WINDOW_H
+#define VCMA_WINDOW_H
+
+#include <sigc++/sigc++.h>
+#include <memory>
+#include <gtkmm.h>
+#include "track-list.h"
+#include "track-list-loader.h"
+
+class Track;
+class VCMAWindow: public Gtk::Window
+{
+ public:
+    static VCMAWindow* create();
+
+    VCMAWindow(BaseObjectType* baseObject, 
+               const Glib::RefPtr<Gtk::Builder>& xml);
+
+    virtual ~VCMAWindow();
+ private:
+
+    //for the treeview
+    Gtk::TreeView *treeview;
+    class SongsColumns: public Gtk::TreeModelColumnRecord {
+  public:
+      SongsColumns()
+	{add(duration); add(genre); add(song_title); add(artist_name); 
+          add(album_id); add(track_id); add(license); add(license_image), 
+            add(album_rating);}
+      Gtk::TreeModelColumn<guint32> duration;
+      Gtk::TreeModelColumn<Glib::ustring> genre;
+      Gtk::TreeModelColumn<Glib::ustring> song_title;
+      Gtk::TreeModelColumn<Glib::ustring> artist_name;
+      Gtk::TreeModelColumn<guint32> album_id;
+      Gtk::TreeModelColumn<guint32> track_id;
+      Gtk::TreeModelColumn<Glib::ustring> license;
+      Gtk::TreeModelColumn<Glib::RefPtr<Gdk::Pixbuf> > license_image;
+      Gtk::TreeModelColumn<double> album_rating;
+    };
+    const SongsColumns songs_columns;
+    Glib::RefPtr<Gtk::ListStore> songs_list;
+    Glib::RefPtr<Gtk::TreeModelSort> sorted_songs_list;
+    Gtk::CellRendererText duration_renderer;
+    Gtk::TreeViewColumn duration_column;
+    void cell_data_duration(Gtk::CellRenderer *renderer, const Gtk::TreeIter &i);
+    Gtk::CellRendererPixbuf license_renderer;
+    Gtk::TreeViewColumn license_column;
+    void cell_data_license(Gtk::CellRenderer *renderer, const Gtk::TreeIter &i);
+
+    Gtk::CellRendererText song_and_artist_renderer;
+    Gtk::TreeViewColumn song_and_artist_column;
+    void cell_data_song_and_artist(Gtk::CellRenderer *renderer, const Gtk::TreeIter &i);
+
+    Gtk::CellRendererPixbuf rating_renderer;
+    Gtk::TreeViewColumn rating_column;
+    void cell_data_rating(Gtk::CellRenderer *renderer, const Gtk::TreeIter &i);
+    
+    //widgets
+    Gtk::Box *contents;
+    Gtk::Button *search_button;
+    Gtk::Label *search_label;
+    Gtk::SpinButton *minute_spinbutton;
+    Gtk::SpinButton *second_spinbutton;
+    Gtk::Button *quit_button;
+    Gtk::Label *seconds_label;
+    Gtk::Label *minute_label;
+    Gtk::Box *spinner_container_box;
+    Gtk::Label *results_label;
+    Gtk::Button *about_button;
+    Gtk::Button *video_filechooser_button;
+    Gtk::Box *video_file_box;
+    Gtk::Statusbar *statusbar;
+    Gtk::Button *play_button;
+    Gtk::Button *details_button;
+
+    Gtk::Menu treeview_context_menu;
+
+    //callbacks
+    void on_window_loaded();
+    void on_search_clicked();
+    void on_exit_clicked();
+    void on_minute_spinbutton_changed();
+    void on_second_spinbutton_changed();
+    void on_second_text_changed(const Glib::ustring &s, int *p);
+    void on_minute_text_changed(const Glib::ustring &s, int *p);
+    void on_song_activated(const Gtk::TreeModel::Path& path, Gtk::TreeViewColumn *col);
+    void on_song_selected();
+    bool on_delete_event(GdkEventAny *event);
+    void on_play_song_clicked();
+    void on_view_album_clicked();
+    void on_video_filechooser_clicked();
+    void on_catalogue_loaded(TrackList *track_list, guint32 secs);
+    void on_load_catalogue_aborted();
+    void on_treeview_clicked(GdkEventButton* event);
+    void on_about_clicked();
+    void on_play_clicked();
+    void on_details_clicked();
+
+    void on_album_license_not_loaded(guint32 album_id, TrackList *songs);
+    void on_album_license_loaded(guint32 album_id, Glib::ustring license, Glib::RefPtr<Gdk::Pixbuf> license_image, double rating, TrackList *songs);
+    void on_drag_data_received(const Glib::RefPtr<Gdk::DragContext>& context,
+                               int, int, 
+                               const Gtk::SelectionData& selection_data,
+                               guint,guint f_time);
+    void on_song_drag_data_get(const Glib::RefPtr<Gdk::DragContext> &context, Gtk::SelectionData &data, guint info, guint time);
+    void on_video_file_selected(Glib::ustring filename);
+    bool on_show_treeview_tooltip(int x, int y, bool keyboard_tooltip, const Glib::RefPtr<Gtk::Tooltip> &tooltip);
+
+    //helpers
+    bool quit();
+    void update_buttons();
+    void add_song_row(const Track &track, Glib::RefPtr<Gdk::Pixbuf> license_image);
+    void search_tracks_in_the_background(TrackList *track_list, guint32 duration);
+    void load_catalogue_in_the_background(TrackList *track_list, guint32 duration);
+    void show_spinner();
+    void unshow_spinner();
+    bool get_video_file_duration(Glib::ustring filename, guint32 &duration);
+
+    //DATA
+    bool d_connected;
+    TrackList *d_track_list;
+    TrackListLoader *d_loader;
+};
+
+#endif // VCMA_WINDOW_H

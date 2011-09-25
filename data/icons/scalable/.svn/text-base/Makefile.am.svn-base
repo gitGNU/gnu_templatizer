@@ -1,0 +1,5 @@
+
+icondir=$(datadir)/icons/hicolor/scalable/apps
+icon_DATA=video-clip-music-assist.svg
+EXTRA_DIST=video-clip-music-assist.svg
+MAINTAINERCLEANFILES=Makefile.in

@@ -1,0 +1,67 @@
+// Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#ifndef TRACK_LIST_H
+#define TRACK_LIST_H
+
+#include <gtkmm.h>
+#include <string>
+#include <vector>
+#include <list>
+
+#include <libxml/tree.h>
+
+#include "track.h"
+class TrackList
+{
+    public:
+
+	//! Copy constructor.
+        TrackList(const TrackList& track_list);
+
+	//! Create an empty track list.
+	TrackList();
+
+	//! Destructor.
+        virtual ~TrackList();
+        
+        typedef std::list<Track*>::iterator iterator;
+        typedef std::list<Track*>::const_iterator const_iterator;
+
+        void add(const TrackList *g);
+        void remove_all_tracks();
+        
+        size_t size() const {return _tracks.size();}
+        Track* back() {return _tracks.back();}
+        void remove_track(Track *track) {_tracks.remove(track);}
+        void push_back(Track *track) {_tracks.push_back(track);}
+
+        const std::list<Track*>& get_tracks()const {return _tracks;}
+        void find_tracks_with_duration(guint32 min, guint32 max, TrackList &tracks) const;
+
+        void get_album_ids(std::list<guint32> &album_ids) const;
+
+        //signals
+        sigc::signal<void> searching;
+        
+    private:
+
+        std::list<Track*> _tracks;
+};
+
+#endif // TRACK_LIST_H
+

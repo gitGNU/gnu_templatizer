@@ -1,0 +1,182 @@
+//  Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#include <config.h>
+#include <assert.h>
+#include <memory>
+#include <iostream>
+#include <assert.h>
+#include <glib.h>
+#include <gtkmm/main.h>
+#include <gconfmm.h>
+#include <libsoupmm/wrap_init.h>
+
+#include "main.h"
+#include "vcma-window.h"
+#include <gstreamermm/init.h>
+
+struct Main::Impl
+{
+    std::auto_ptr<Gtk::Main> gtk_main;
+};
+
+
+static Main *singleton;
+
+Main::Main(int &argc, char **&argv)
+    : impl(new Impl)
+{
+    version_appears_on_the_command_line = false;
+    singleton = this;
+
+    Gnome::Conf::init();
+
+    Soup::wrap_init();
+
+    Glib::thread_init();
+     
+    Gst::init(argc, argv);
+    try
+      {
+        Glib::OptionContext context("");
+        Glib::OptionEntry entry;
+        Glib::OptionGroup options (PACKAGE_NAME, "Video Clip Music Assist Options", "Command-line options for VCMA");
+        entry.set_long_name ("version");
+        entry.set_short_name ('V');
+        entry.set_description ("Show version and exit.");
+        options.add_entry (entry, version_appears_on_the_command_line);
+        context.add_group(options);
+        context.set_summary("This program assists in finding music for homemade video clips.");
+
+        try
+          {
+            context.parse(argc, argv);
+          }
+        catch(const Glib::Error& ex)
+          {
+            std::cout << ex.what() << std::endl;
+            std::cout << "Try `" PACKAGE_NAME 
+              " --help' for more information." << std::endl;
+            exit(0);
+          }
+
+        if (version_appears_on_the_command_line)
+          {
+            std::cout << PACKAGE_NAME << " " << PACKAGE_VERSION << std::endl;
+            std::cout << 
+              "This is free software: " <<
+              "you are free to change and redistribute it." << std::endl;
+            std::cout << 
+              "There is NO WARRANTY, to the extent permitted by law." << 
+              std::endl;
+            exit(0);
+          }
+
+	impl->gtk_main.reset(new Gtk::Main(argc, argv, context));
+
+        first_run();
+    }
+    catch (const Glib::Error &ex) {
+	std::cerr << ex.what() << std::endl;
+    }
+}
+
+void Main::first_run()
+{
+  Glib::RefPtr<Gnome::Conf::Client> conf_client;
+  conf_client = Gnome::Conf::Client::get_default_client();
+  conf_client->add_dir("/apps/" PACKAGE_NAME "/general");
+  std::string datadir = 
+    conf_client->get_string("/apps/" PACKAGE_NAME "/general/datadir");
+  if (datadir == "")
+    {
+      std::string new_datadir = VCMA_DATADIR;
+      conf_client->set("/apps/" PACKAGE_NAME "/general/datadir", new_datadir);
+    }
+}
+Main::~Main()
+{
+    delete impl;
+    singleton = 0;
+}
+
+Main &Main::instance()
+{
+    assert(singleton != 0);
+    return *singleton;
+}
+
+bool Main::iterate_main_loop()
+{
+    try
+    {
+	impl->gtk_main->iteration(false);
+    }
+    catch (const Glib::Error &ex) {
+	std::cerr << ex.what() << std::endl;
+    }
+
+    return true;
+}
+
+#include "vcma-window.h"
+void Main::start_main_loop()
+{
+    try
+    {
+      window = VCMAWindow::create();
+      impl->gtk_main->run(*window);
+      window->hide();
+      delete window;
+    }
+    catch (const Glib::Error &ex) {
+	std::cerr << ex.what() << std::endl;
+    }
+}
+
+void Main::stop_main_loop()
+{
+    try
+    {
+	impl->gtk_main->quit();
+    }
+    catch (const Glib::Error &ex) {
+	std::cerr << ex.what() << std::endl;
+    }
+}
+std::string Main::get_glade_path()
+{
+  Glib::RefPtr<Gnome::Conf::Client> conf_client;
+  conf_client = Gnome::Conf::Client::get_default_client();
+  std::string d = 
+    conf_client->get_string("/apps/" PACKAGE_NAME "/general/datadir");
+  return d + "/glade";
+}
+
+std::string Main::get_data_path()
+{
+  Glib::RefPtr<Gnome::Conf::Client> conf_client;
+  conf_client = Gnome::Conf::Client::get_default_client();
+  std::string d = 
+    conf_client->get_string("/apps/" PACKAGE_NAME "/general/datadir");
+  return d + "/data";
+}
+
+VCMAWindow* Main::get_window()
+{
+  return window;
+}

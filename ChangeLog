@@ -1,0 +1,10 @@
+* Mon Sep 24 2011 Ben Asselstine <bing@nym.hush.com>
+- ellipsizing template names in treeview.
+- fixed bug wrt sometimes-crash on exit.
+- fixed bug wrt textview growing horizontally.
+- clicking new-template now selects that new template.
+- added case insensitive search.
+- no longer spawning /usr/bin/gnome-open, calling gtk_show_uri instead.
+- now searching the templates in the background.
+- now disabling search when we start a new template.
+

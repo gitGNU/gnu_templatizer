@@ -1,0 +1,50 @@
+
+Summary: Quickly start an email with a template.
+Name: @PACKAGE@
+Version: @VERSION@
+Release: 1
+License: GPL3+
+Group: Applications/Email
+Source: http://www.asselstine.com/software/%{name}/%{name}-%{version}.tar.gz
+URL: http://www.asselstine.com/software/%{name}
+BuildRoot: %{_tmppath}/%{name}-root
+Requires: gtkmm30 >= 3.0, libsigc++20 >= 2.0, sqlite >= 3.0.0, gtksourceviewmm3 >= 3.0
+BuildRequires: pkgconfig
+BuildRequires: gtkmm30-devel >= 3.0, libsigc++20-devel >= 2.0, sqlite-devel >= 3.0.0, gtksourceviewmm3-devel >= 3.0 
+%description
+Templatizer is a program to manage your email templates.
+
+%prep
+%setup -q
+
+%build
+%configure 
+make 
+
+%install
+rm -rf %{buildroot}
+%makeinstall
+
+%clean
+rm -rf %{buildroot}
+
+%post
+
+%files
+%defattr(-, root, root)
+%doc AUTHORS COPYING ChangeLog NEWS README TODO
+%{_bindir}/%{name}
+%{_datadir}/applications/%{name}.desktop
+%{_datadir}/%{name}
+%{_datadir}/icons/hicolor/32x32/apps/%{name}.png
+%{_datadir}/icons/hicolor/64x64/apps/%{name}.png
+%{_datadir}/icons/hicolor/scalable/apps/%{name}.svg
+
+
+%changelog
+
+* Mon Sep 25 2011 Ben Asselstine <bing@nym.hush.com>
+- released 0.0.1-1.  See ChangeLog for details.
+* Mon Sep 24 2011 Ben Asselstine <bing@nym.hush.com>
+- Initial RPM release.
+

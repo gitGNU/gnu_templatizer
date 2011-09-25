@@ -1,0 +1,679 @@
+//  Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#include <config.h>
+
+#include <fstream>
+#include <gtkmm.h>
+#include <glibmm.h>
+#include <giomm.h>
+#include "main.h"
+#include "vcma-window.h"
+#include "ucompose.hpp"
+#include "track.h"
+#include "track-list.h"
+#include "track-list-loader.h"
+#include <gstreamermm/playbin2.h>
+#include <gstreamermm/fakesink.h>
+#include <iomanip>
+
+VCMAWindow* VCMAWindow::create()
+{
+  VCMAWindow *window;
+  Glib::RefPtr<Gtk::Builder> xml = 
+    Gtk::Builder::create_from_file(Main::get_glade_path() + "/vcma.gtk");
+
+  xml->get_widget_derived("window", window);
+  window->on_window_loaded();
+  window->signal_delete_event().connect(
+	sigc::mem_fun(*window, &VCMAWindow::on_delete_event));
+  return window;
+}
+
+VCMAWindow::VCMAWindow(BaseObjectType* baseObject, 
+                             const Glib::RefPtr<Gtk::Builder>& xml)
+ : Gtk::Window(baseObject), duration_column("Duration", duration_renderer),
+    license_column("License", license_renderer),
+    song_and_artist_column("Song/Artist", song_and_artist_renderer),
+    rating_column("Album\nRating", rating_renderer)
+{
+
+  xml->get_widget("contents", contents);
+
+  set_icon_from_file(Main::get_data_path() + "/video-clip-music-assist.png");
+  xml->get_widget("treeview", treeview);
+  treeview->set_has_tooltip(true);
+  treeview->signal_button_press_event().connect_notify
+    (sigc::mem_fun(*this, &VCMAWindow::on_treeview_clicked));
+  songs_list = Gtk::ListStore::create(songs_columns);
+  sorted_songs_list = Gtk::TreeModelSort::create(songs_list);
+  sorted_songs_list->set_sort_column(songs_columns.duration, Gtk::SORT_ASCENDING);
+
+  treeview->set_model(sorted_songs_list);
+  treeview->get_selection()->set_mode(Gtk::SELECTION_SINGLE);
+  treeview->set_headers_clickable(true);
+  //the name entry box
+  duration_column.set_cell_data_func
+    (duration_renderer, sigc::mem_fun(*this, &VCMAWindow::cell_data_duration));
+  treeview->append_column(duration_column);
+  license_column.set_cell_data_func
+    (license_renderer, sigc::mem_fun(*this, &VCMAWindow::cell_data_license));
+  treeview->append_column(license_column);
+  treeview->append_column("Genre", songs_columns.genre);
+  song_and_artist_column.set_cell_data_func
+    (song_and_artist_renderer, sigc::mem_fun(*this, &VCMAWindow::cell_data_song_and_artist));
+  treeview->append_column(song_and_artist_column);
+  rating_column.set_cell_data_func
+    (rating_renderer, sigc::mem_fun(*this, &VCMAWindow::cell_data_rating));
+  treeview->append_column(rating_column);
+
+  treeview->signal_row_activated().connect
+    (sigc::mem_fun(*this, &VCMAWindow::on_song_activated));
+  treeview->get_selection()->signal_changed().connect
+    (sigc::mem_fun(*this, &VCMAWindow::on_song_selected));
+  treeview->signal_query_tooltip().connect
+    (sigc::mem_fun(*this, &VCMAWindow::on_show_treeview_tooltip));
+
+  Gtk::Menu::MenuList& menulist = treeview_context_menu.items();
+  menulist.push_back
+    (Gtk::Menu_Helpers::MenuElem
+     ("_Play Song", 
+      sigc::mem_fun(*this, &VCMAWindow::on_play_song_clicked)));
+  menulist.push_back
+    (Gtk::Menu_Helpers::MenuElem
+     ("_View Album on the Web", sigc::mem_fun(*this, &VCMAWindow::on_view_album_clicked)));
+  treeview_context_menu.accelerate(*this);
+
+  treeview->get_column(0)->set_sort_column(songs_columns.duration);
+  treeview->get_column(1)->set_sort_column(songs_columns.license);
+  treeview->get_column(1)->set_fixed_width(100);
+  treeview->get_column(2)->set_sort_column(songs_columns.genre);
+  treeview->get_column(2)->set_fixed_width(100);
+  treeview->get_column(2)->set_max_width(100);
+  treeview->get_column(2)->set_expand(false);
+  treeview->get_column(3)->set_sort_column(songs_columns.song_title);
+  treeview->get_column(3)->set_min_width(50);
+  treeview->get_column(3)->set_max_width(200);
+  treeview->get_column(3)->set_resizable(true);
+  treeview->get_column(3)->set_expand(true);
+  treeview->get_column(4)->set_sort_column(songs_columns.album_rating);
+  treeview->get_column(4)->set_expand(false);
+
+  //menubar callbacks
+  xml->get_widget("search_button", search_button);
+  search_button->signal_clicked().connect(sigc::mem_fun(*this,&VCMAWindow::on_search_clicked));
+  xml->get_widget("search_label", search_label);
+  xml->get_widget("quit_button", quit_button);
+  quit_button->signal_clicked().connect(sigc::mem_fun(*this,&VCMAWindow::on_exit_clicked));
+  xml->get_widget("play_button", play_button);
+  play_button->signal_clicked().connect(sigc::mem_fun(*this,&VCMAWindow::on_play_clicked));
+  xml->get_widget("details_button", details_button);
+  details_button->signal_clicked().connect(sigc::mem_fun(*this,&VCMAWindow::on_details_clicked));
+  xml->get_widget("minute_spinbutton", minute_spinbutton);
+  minute_spinbutton->signal_changed().connect
+    (sigc::mem_fun(*this, &VCMAWindow::on_minute_spinbutton_changed));
+  minute_spinbutton->signal_insert_text().connect
+         (sigc::mem_fun(this, &VCMAWindow::on_minute_text_changed));
+  xml->get_widget("second_spinbutton", second_spinbutton);
+  second_spinbutton->signal_changed().connect
+    (sigc::mem_fun(*this, &VCMAWindow::on_second_spinbutton_changed));
+  second_spinbutton->signal_insert_text().connect
+         (sigc::mem_fun(this, &VCMAWindow::on_second_text_changed));
+  xml->get_widget("spinner_container_box", spinner_container_box);
+  xml->get_widget("minute_label", minute_label);
+  xml->get_widget("seconds_label", seconds_label);
+  xml->get_widget("results_label", results_label);
+  xml->get_widget("about_button", about_button);
+  about_button->signal_clicked().connect(sigc::mem_fun(*this,&VCMAWindow::on_about_clicked));
+  xml->get_widget("video_filechooser_button", video_filechooser_button);
+  video_filechooser_button->signal_clicked().connect(sigc::mem_fun(*this,&VCMAWindow::on_video_filechooser_clicked));
+
+  xml->get_widget("video_file_box", video_file_box);
+  std::list<Gtk::TargetEntry> targets;
+  targets.push_back(Gtk::TargetEntry("STRING"));
+  targets.push_back(Gtk::TargetEntry("text/plain"));
+  video_file_box->drag_dest_set(targets);
+  video_file_box->signal_drag_data_received().connect
+    (sigc::mem_fun(*this, &VCMAWindow::on_drag_data_received));
+  treeview->enable_model_drag_source(targets, Gdk::MODIFIER_MASK, Gdk::ACTION_COPY);
+  treeview->signal_drag_data_get().connect
+    (sigc::mem_fun(*this, &VCMAWindow::on_song_drag_data_get));
+  xml->get_widget("statusbar", statusbar);
+  update_buttons();
+}
+
+void VCMAWindow::on_window_loaded()
+{
+  d_track_list = new TrackList();
+  d_connected = false;
+  d_loader = new TrackListLoader();
+}
+
+VCMAWindow::~VCMAWindow()
+{
+}
+
+void VCMAWindow::load_catalogue_in_the_background(TrackList *track_list, guint32 secs)
+{
+  statusbar->push("Downloading music catalogue from jamendo.com...");
+  d_loader->load("http://img.jamendo.com/data/dbdump.en.xml.gz", track_list,
+                 sigc::bind(sigc::mem_fun(this, 
+                                          &VCMAWindow::on_catalogue_loaded), 
+                            secs),
+                 sigc::mem_fun(this, &VCMAWindow::on_load_catalogue_aborted));
+}
+
+void VCMAWindow::on_load_catalogue_aborted()
+{
+  statusbar->push("Could not download music catalogue from jamendo.com.");
+  contents->set_sensitive(true);
+  search_label->set_text("Search");
+  results_label->set_text("");
+  unshow_spinner();
+}
+
+void VCMAWindow::on_catalogue_loaded(TrackList *track_list, guint32 secs)
+{
+  statusbar->push("Downloaded music catalogue from jamendo.com.");
+  d_connected = true;
+  d_track_list->add(track_list);
+  Glib::signal_idle().connect_once(sigc::bind(sigc::mem_fun(*this, &VCMAWindow::search_tracks_in_the_background), d_track_list, secs));
+}
+
+bool VCMAWindow::quit()
+{
+  exit(0); //makes us exit quicker
+  return true;
+}
+    
+bool VCMAWindow::on_delete_event(GdkEventAny *event)
+{
+  return quit();
+}
+
+void VCMAWindow::on_exit_clicked()
+{
+  quit();
+}
+
+void VCMAWindow::on_play_clicked()
+{
+  on_play_song_clicked();
+}
+
+void VCMAWindow::on_details_clicked()
+{
+  on_view_album_clicked();
+}
+
+void VCMAWindow::on_song_selected()
+{
+  update_buttons();
+}
+
+void VCMAWindow::update_buttons()
+{
+  Glib::RefPtr<Gtk::TreeSelection> selection = treeview->get_selection();
+  Gtk::TreeModel::iterator iterrow = selection->get_selected();
+  if (iterrow)
+    {
+      play_button->set_sensitive(true);
+      details_button->set_sensitive(true);
+    }
+  else
+    {
+      play_button->set_sensitive(false);
+      details_button->set_sensitive(false);
+    }
+}
+
+void VCMAWindow::on_song_activated(const Gtk::TreeModel::Path& path,
+                                   Gtk::TreeViewColumn *col)
+{
+  on_play_song_clicked();
+}
+
+void VCMAWindow::on_play_song_clicked()
+{
+  Glib::RefPtr<Gtk::TreeSelection> selection = treeview->get_selection();
+  Gtk::TreeModel::iterator iterrow = selection->get_selected();
+  if (iterrow)
+    {
+      Gtk::TreeModel::Row row = *iterrow;
+      guint32 track_id = row[songs_columns.track_id];
+      Glib::ustring url = String::ucompose("http://www.jamendo.com/get/track/id/track/audio/redirect/%1/?aue=ogg2", track_id);
+
+      Glib::ustring cmd = Glib::find_program_in_path("totem") + " " + url;
+      Glib::spawn_command_line_async(cmd);
+    }
+}
+
+void VCMAWindow::on_about_clicked()
+{
+  Gtk::AboutDialog* dialog;
+
+  Glib::RefPtr<Gtk::Builder> xml
+    = Gtk::Builder::create_from_file(Main::get_glade_path() + "/about-dialog.gtk");
+
+  xml->get_widget("dialog", dialog);
+  dialog->set_transient_for(*this);
+  dialog->set_icon_from_file(Main::get_data_path() + "/video-clip-music-assist.png");
+
+  std::string name = PACKAGE_NAME;
+  std::transform(name.begin(), ++name.begin(), name.begin(), toupper);
+  dialog->set_program_name(name);
+  dialog->set_version(PACKAGE_VERSION);
+  dialog->set_logo(Gdk::Pixbuf::create_from_file(Main::get_data_path() + "/video-clip-music-assist.png"));
+  dialog->show_all();
+  dialog->set_title("About");
+  dialog->run();
+  delete dialog;
+  return;
+}
+
+void VCMAWindow::on_view_album_clicked()
+{
+  Glib::RefPtr<Gtk::TreeSelection> selection = treeview->get_selection();
+  Gtk::TreeModel::iterator iterrow = selection->get_selected();
+  if (iterrow)
+    {
+      Gtk::TreeModel::Row row = *iterrow;
+      guint32 album_id = row[songs_columns.album_id];
+      Glib::ustring url = String::ucompose("http://www.jamendo.com/en/album/%1", album_id);
+      Glib::ustring cmd = Glib::find_program_in_path("gvfs-open") + " " + url;
+      Glib::spawn_command_line_async(cmd);
+    }
+}
+
+void VCMAWindow::on_search_clicked()
+{
+  std::list<Gtk::Widget*> widgets = spinner_container_box->get_children();
+  if (widgets.size() > 0 && 
+      dynamic_cast<Gtk::Spinner*>(widgets.back())->property_active() == true)
+    {
+      search_label->set_text("Search");
+      d_loader->reset();
+      contents->set_sensitive(true);
+      unshow_spinner();
+      statusbar->push("");
+    }
+  else
+    {
+      results_label->set_text("");
+      search_label->set_text("Stop");
+      contents->set_sensitive(false);
+      show_spinner();
+      songs_list->clear();
+      update_buttons();
+      guint32 secs = (minute_spinbutton->get_value() * 60) + second_spinbutton->get_value();
+      if (d_connected == false)
+        Glib::signal_idle().connect_once(sigc::bind(sigc::mem_fun(*this, &VCMAWindow::load_catalogue_in_the_background), d_track_list, secs));
+      else
+        Glib::signal_idle().connect_once(sigc::bind(sigc::mem_fun(*this, &VCMAWindow::search_tracks_in_the_background), d_track_list, secs));
+    }
+}
+
+void VCMAWindow::search_tracks_in_the_background(TrackList *track_list, guint32 duration)
+{
+  statusbar->push("Searching for suitably licensed songs...");
+  guint32 min = duration;
+  if (min > 0)
+    min--;
+  guint32 max = duration;
+  if (max < 86400)
+    max++;
+
+  TrackList *songs = new TrackList();
+  track_list->find_tracks_with_duration(min, max, *songs);
+
+  std::list<guint32> album_ids;
+  songs->get_album_ids(album_ids);
+
+  contents->set_sensitive(true);
+  contents->show_all();
+
+  for (std::list<guint32>::iterator i = album_ids.begin(); i != album_ids.end();
+       i++)
+    {
+      d_loader->check_album_license(*i, sigc::bind(sigc::mem_fun(*this, &VCMAWindow::on_album_license_loaded), songs), sigc::bind(sigc::mem_fun(*this, &VCMAWindow::on_album_license_not_loaded), songs));
+    }
+
+  if (songs->size() == 0)
+    {
+      results_label->set_text("No songs were found.");
+      unshow_spinner();
+      statusbar->push("");
+    }
+
+  return;
+}
+
+void VCMAWindow::on_album_license_not_loaded(guint32 album_id, TrackList *songs)
+{
+  on_album_license_loaded(album_id, "Unknown", Glib::RefPtr<Gdk::Pixbuf>(0), 0.0, songs);
+}
+
+void VCMAWindow::on_album_license_loaded(guint32 album_id, Glib::ustring license, Glib::RefPtr<Gdk::Pixbuf> license_image, double rating, TrackList *songs)
+{
+  std::string l = license;
+  bool completely_filled = true;
+  //fill in the license of every song belonging to this album id
+  for (TrackList::const_iterator i = songs->get_tracks().begin(); 
+       i != songs->get_tracks().end(); i++)
+    {
+      if ((*i)->get_album_id() == album_id)
+        {
+          (*i)->set_license(license);
+          (*i)->set_album_rating(rating);
+          if (license.find("nd") == Glib::ustring::npos && license != "Unknown")
+            {
+              add_song_row(**i, license_image);
+
+              guint32 count = songs_list->children().size();
+              if (count == 1)
+                results_label->set_text(String::ucompose("%1 song was found.", 
+                                                         count));
+              else
+                results_label->set_text
+                  (String::ucompose("%1 songs were found.", count));
+            }
+        }
+      if ((*i)->get_license() == "")
+        completely_filled = false;
+    }
+  if (completely_filled)
+    {
+      unshow_spinner();
+      search_label->set_text("Search");
+      statusbar->push("");
+    }
+}
+
+void VCMAWindow::add_song_row(const Track &track, Glib::RefPtr<Gdk::Pixbuf> license_image)
+{
+  Gtk::TreeIter i = songs_list->append();
+  (*i)[songs_columns.duration] = track.get_duration();
+  (*i)[songs_columns.genre] = track.get_genre();
+  (*i)[songs_columns.song_title] = track.get_song_title();
+  (*i)[songs_columns.artist_name] = track.get_artist_name();
+  (*i)[songs_columns.album_id] = track.get_album_id();
+  (*i)[songs_columns.track_id] = track.get_track_id();
+  (*i)[songs_columns.license] = track.get_license();
+  (*i)[songs_columns.license_image] = license_image;
+  (*i)[songs_columns.album_rating] = track.get_album_rating();
+  treeview->show_all();
+}
+
+void VCMAWindow::cell_data_license(Gtk::CellRenderer *renderer, const Gtk::TreeIter &i)
+{
+  Gtk::CellRendererPixbuf *cell = dynamic_cast<Gtk::CellRendererPixbuf*>(renderer);
+  cell->property_pixbuf() = (*i)[songs_columns.license_image];
+  /*
+  Glib::ustring l = (*i)[songs_columns.license];
+  std::vector < Glib::ustring > a = Glib::Regex::split_simple ("/", l);
+  if (a.size () <= 1)
+    {
+      cell->property_text() = l;
+      return;
+    }
+  cell->property_text() = "CC";
+  std::vector < Glib::ustring > b = Glib::Regex::split_simple ("-", a[0]);
+  for (std::vector<Glib::ustring>::iterator i = b.begin();  i != b.end(); i++)
+    cell->property_text() = cell->property_text() + " " + *i;
+
+  cell->property_text() = cell->property_text() + " " + a[1];
+  */
+}
+
+void VCMAWindow::cell_data_song_and_artist(Gtk::CellRenderer *renderer, const Gtk::TreeIter &i)
+{
+  Gtk::CellRendererText*cell = dynamic_cast<Gtk::CellRendererText*>(renderer);
+  cell->property_markup() = "<b>" + (*i)[songs_columns.song_title] + 
+    "</b>\nby: <u>" + (*i)[songs_columns.artist_name] +"</u>";
+}
+
+void VCMAWindow::cell_data_rating(Gtk::CellRenderer *renderer, const Gtk::TreeIter &i)
+{
+  Gtk::CellRendererPixbuf *cell = 
+    dynamic_cast<Gtk::CellRendererPixbuf*>(renderer);
+
+  double rating = (*i)[songs_columns.album_rating];
+  if (rating > 9.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/5of5.svg", 67, 13);
+  else if (rating > 8.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/4hvof5.svg", 67, 13);
+  else if (rating > 7.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/4of5.svg", 67, 13);
+  else if (rating > 6.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/3hvof5.svg", 67, 13);
+  else if (rating > 5.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/3of5.svg", 67, 13);
+  else if (rating > 4.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/2hvof5.svg", 67, 13);
+  else if (rating > 3.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/2of5.svg", 67, 13);
+  else if (rating > 2.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/1hvof5.svg", 67, 13);
+  else if (rating > 1.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/1of5.svg", 67, 13);
+  else if (rating > 0.5)
+    cell->property_pixbuf() = Gdk::Pixbuf::create_from_file
+      (Main::get_data_path() + "/0hvof5.svg", 67, 13);
+    //cell->property_text() = Glib::ustring::format(std::fixed, std::setprecision(1), (*i)[songs_columns.album_rating]);
+}
+
+
+void VCMAWindow::cell_data_duration(Gtk::CellRenderer *renderer, const Gtk::TreeIter &i)
+{
+  Gtk::CellRendererText*cell = dynamic_cast<Gtk::CellRendererText*>(renderer);
+  guint32 mins = (*i)[songs_columns.duration] / 60;
+  guint32 secs = (*i)[songs_columns.duration] % 60;
+  if (secs < 10)
+    cell->property_text() = String::ucompose("%1:0%2", mins, secs);
+  else
+    cell->property_text() = String::ucompose("%1:%2", mins, secs);
+}
+
+void VCMAWindow::on_treeview_clicked(GdkEventButton* event)
+{
+  if (event->type == GDK_BUTTON_PRESS && event->button == 3)
+    treeview_context_menu.popup(event->button, event->time);
+}
+    
+void VCMAWindow::on_minute_spinbutton_changed()
+{
+  if (minute_spinbutton->get_value() == 1)
+    minute_label->set_text("minute, and");
+  else
+    minute_label->set_text("minutes, and");
+}
+
+void VCMAWindow::on_second_spinbutton_changed()
+{
+  if (second_spinbutton->get_value() == 1)
+    seconds_label->set_text("second long.");
+  else
+    seconds_label->set_text("seconds long.");
+}
+
+void VCMAWindow::on_second_text_changed(const Glib::ustring &s, int *p)
+{
+  second_spinbutton->set_value(atoi(second_spinbutton->get_text().c_str()));
+  on_second_spinbutton_changed();
+}
+
+void VCMAWindow::on_minute_text_changed(const Glib::ustring &s, int *p)
+{
+  minute_spinbutton->set_value(atoi(minute_spinbutton->get_text().c_str()));
+  on_minute_spinbutton_changed();
+}
+
+void VCMAWindow::show_spinner()
+{
+  Gtk::Spinner *spinner = new Gtk::Spinner();
+  spinner->property_active() = true;
+  spinner_container_box->pack_start(*spinner, true, false, 0);
+  spinner_container_box->show_all();
+}
+
+void VCMAWindow::unshow_spinner()
+{
+  std::list<Gtk::Widget*> widgets = spinner_container_box->get_children();
+  if (widgets.size() > 0)
+    {
+      spinner_container_box->remove(*widgets.back());
+      spinner_container_box->show_all();
+    }
+}
+    
+void VCMAWindow::on_video_filechooser_clicked()
+{
+  Gtk::FileChooserDialog chooser(*this, "Find your video");
+
+  chooser.add_button(Gtk::Stock::CANCEL, Gtk::RESPONSE_CANCEL);
+  chooser.add_button(Gtk::Stock::OPEN, Gtk::RESPONSE_ACCEPT);
+  chooser.set_default_response(Gtk::RESPONSE_ACCEPT);
+
+  chooser.show_all();
+  int res = chooser.run();
+  chooser.hide();
+
+  if (res == Gtk::RESPONSE_ACCEPT && chooser.get_filename().empty() == false)
+    on_video_file_selected(chooser.get_uri());
+}
+
+bool VCMAWindow::get_video_file_duration(Glib::ustring uri, guint32 &secs)
+{
+  Glib::RefPtr<Gst::PlayBin2> playbin = Gst::PlayBin2::create();
+  playbin->property_uri() = uri;
+  playbin->property_video_sink() = Gst::FakeSink::create();
+  playbin->property_audio_sink() = Gst::FakeSink::create();
+  playbin->set_state(Gst::STATE_PLAYING);
+  Gst::State current, pending;
+  playbin->get_state(current, pending, Gst::CLOCK_TIME_NONE);
+  Gst::Format format = Gst::FORMAT_TIME;
+  gint64 duration = 0;
+  playbin->query_duration(format, duration);
+  secs = static_cast<double>(duration / Gst::SECOND);
+  playbin->set_state(Gst::STATE_NULL);
+  return true;
+}
+  
+void 
+VCMAWindow::on_drag_data_received(const Glib::RefPtr<Gdk::DragContext>& context,
+                                  int, int, 
+                                  const Gtk::SelectionData& selection_data,
+                                  guint,guint f_time)
+{
+  if((selection_data.get_length() >= 0)&&(selection_data.get_format()== 8))
+    {
+      context->drag_finish(false,false,f_time);
+      std::string filename = selection_data.get_text();
+      size_t pos = filename.find_first_of("\r\n");
+      if (std::string::npos != pos)
+        filename = filename.substr(0, pos);
+      if (filename != "")
+        on_video_file_selected(filename);
+    }
+}
+      
+void VCMAWindow::on_video_file_selected(Glib::ustring filename)
+{
+  guint32 secs = 0;
+  if (get_video_file_duration(filename, secs))
+    {
+      if (secs != 0)
+        {
+          minute_spinbutton->set_value(secs / 60);
+          second_spinbutton->set_value(secs % 60);
+          second_spinbutton->grab_focus();
+        }
+    }
+}
+    
+void VCMAWindow::on_song_drag_data_get(const Glib::RefPtr<Gdk::DragContext> &context, Gtk::SelectionData &data, guint info, guint time)
+{
+  context->get_source_window()->show();
+  Glib::RefPtr<Gtk::TreeSelection> selection = treeview->get_selection();
+  Gtk::TreeModel::iterator iterrow = selection->get_selected();
+  if (iterrow)
+    {
+      Gtk::TreeModel::Row row = *iterrow;
+      guint32 track_id = row[songs_columns.track_id];
+      data.set_text(String::ucompose("http://www.jamendo.com/get/track/id/track/audio/redirect/%1/?aue=ogg2", track_id));
+    }
+}
+    
+bool VCMAWindow::on_show_treeview_tooltip(int x, int y, bool keyboard_tooltip, const Glib::RefPtr<Gtk::Tooltip> &tooltip)
+{
+  int orig_x = x;
+  int orig_y = y;
+  Gtk::TreeModel::Path path;
+  Gtk::TreeViewColumn *column = NULL;
+  Gtk::TreeModel::iterator i;
+  int cell_x = 0, cell_y = 0;
+  treeview->get_path_at_pos(orig_x, orig_y, path, column, cell_x, cell_y);
+  if (treeview->get_tooltip_context_iter(x, y, keyboard_tooltip, i))
+    {
+      if (!i)
+        return false;
+      if (column == treeview->get_column(1)) //license
+        {
+          Glib::ustring l = (*i)[songs_columns.license];
+          std::vector < Glib::ustring > a = 
+            Glib::Regex::split_simple ("/", l);
+          if (a.size () <= 1)
+            return false;
+          Glib::ustring license;
+          license = "CC";
+          std::vector < Glib::ustring > b = 
+            Glib::Regex::split_simple ("-", a[0]);
+          for (std::vector<Glib::ustring>::iterator j = b.begin();  
+               j != b.end(); j++)
+            license = license + " " + *j;
+
+          license = license + " " + a[1];
+          tooltip->set_text(license);
+          return true;
+        }
+      else if (column == treeview->get_column(2)) //genre
+        {
+          tooltip->set_text((*i)[songs_columns.genre]);
+          return true;
+        }
+      else if (column == treeview->get_column(3)) //song
+        {
+          tooltip->set_text((*i)[songs_columns.song_title]);
+          return true;
+        }
+      else if (column == treeview->get_column(4)) //rating
+        {
+          tooltip->set_text(Glib::ustring::format(std::fixed, std::setprecision(2), (*i)[songs_columns.album_rating] / 2) + " stars");
+          return true;
+        }
+    }
+  return false;
+}

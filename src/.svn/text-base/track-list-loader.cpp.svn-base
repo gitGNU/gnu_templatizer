@@ -1,0 +1,312 @@
+//  Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#include "track-list-loader.h"
+#include "track-list.h"
+#include "track.h"
+#include <libxml/tree.h>
+#include "ucompose.hpp"
+
+TrackListLoader::TrackListLoader()
+{
+}
+
+TrackListLoader::~TrackListLoader()
+{
+}
+
+void TrackListLoader::load(Glib::ustring url, TrackList *track_list, sigc::slot<void, TrackList*> success_slot, sigc::slot<void> failure_slot)
+{
+  d_track_list = track_list;
+  web = Soup::Session::create (true);
+  web->property_timeout () = 5;
+  web->property_idle_timeout () = 5;
+  web->property_max_conns_per_host () = 1;
+  web->add_feature_by_type (SOUP_TYPE_COOKIE_JAR);
+  Glib::RefPtr < Soup::Message > msg = Soup::Message::create ("GET", url);
+  web->queue_message (msg, sigc::bind(sigc::mem_fun 
+                      (this, &TrackListLoader::on_file_downloaded), success_slot, failure_slot));
+}
+
+void TrackListLoader::on_file_downloaded(Glib::RefPtr < Soup::Message > &msg,
+                                         sigc::slot<void,TrackList *> success, 
+                                         sigc::slot<void> failure)
+{
+  if (msg->property_status_code () == 200)
+    {
+      Soup::MessageBody body (msg->gobj ()->response_body);
+      body.set_accumulate (true);
+      Soup::Buffer buffer = body.flatten ();
+      const char *data = buffer.gobj ()->data;
+      guint len = buffer.gobj ()->length;
+      TrackList *tracks = load_data(data, len);
+      success(tracks);
+    }
+  else
+    {
+      failure();
+    }
+}
+
+TrackList* TrackListLoader::load_data(const char *data, guint len)
+{
+  char tmpfile[] = "/tmp/crapola";
+  FILE *fileptr = fopen(tmpfile, "wb");
+  fwrite(data, len, 1, fileptr);
+  fclose (fileptr);
+  gzFile gz = gzopen(tmpfile, "r");
+  uLong destlen1;
+  memcpy(&destlen1, &data[0], sizeof (destlen1));
+  char * buf1 = (char *) malloc(destlen1);
+  gzread (gz, buf1, destlen1);
+  gzclose(gz);
+  remove (tmpfile);
+
+  //okay, the uncompressed data is now in buf1.
+  TrackList *tracks = parse(buf1, destlen1);
+
+  free(buf1);
+  return tracks;
+}
+
+void TrackListLoader::parse_tracks(xmlNodePtr child, std::map<guint32, Glib::ustring> &d_artists, std::map<guint32, Glib::ustring> &d_genre, std::map<guint32, guint32> &d_albums, TrackList *ts)
+{
+  xmlNodePtr tracks = child->xmlChildrenNode;
+  while (tracks)
+    {
+      if (xmlStrcasecmp(tracks->name, BAD_CAST "track") == 0) 
+        {
+          xmlChar* value = xmlGetProp(tracks, BAD_CAST "id");
+          guint32 track_id = atoi((char *)value);
+          xmlFree (value);
+          value = xmlGetProp(tracks, BAD_CAST "lengths");
+          guint32 duration= atoi((char *)value);
+          xmlFree (value);
+          value = xmlGetProp(tracks, BAD_CAST "albumID");
+          guint32 album_id = atoi((char *)value);
+          xmlFree (value);
+          xmlNodePtr track_property = tracks->xmlChildrenNode;
+          Glib::ustring track_name;
+          while (track_property)
+            {
+              if (xmlStrcasecmp(track_property->name, BAD_CAST "dispname") == 0) 
+                {
+                  value = xmlNodeGetContent(track_property);
+                  Glib::ustring 
+                    strvalue( reinterpret_cast<const char*>(value));
+                  track_name = strvalue;
+                  xmlFree (value);
+                }
+              track_property = track_property->next;
+            }
+          guint32 artist_id = d_albums[album_id];
+          Track* t = new Track(duration, d_genre[artist_id], track_name, d_artists[artist_id], album_id, track_id);
+          ts->push_back(t);
+        }
+      tracks = tracks->next;
+    }
+}
+
+void TrackListLoader::parse_albums(xmlNodePtr child, std::map<guint32, guint32> &d_albums)
+{
+  xmlNodePtr albums = child->xmlChildrenNode;
+  while (albums)
+    {
+      guint32 album_id = 0;
+      guint32 artist_id = 0;
+      if (xmlStrcasecmp(albums->name, BAD_CAST "album") == 0) 
+        {
+          xmlChar* value = xmlGetProp(albums, BAD_CAST "id");
+          album_id = atoi((char *)value);
+          xmlFree (value);
+          value = xmlGetProp(albums, BAD_CAST "artistID");
+          artist_id = atoi((char *)value);
+          xmlFree (value);
+        }
+      d_albums[album_id] = artist_id;
+      albums = albums->next;
+    }
+}
+
+void TrackListLoader::parse_artists(xmlNodePtr child, std::map<guint32, Glib::ustring>& d_artists, std::map<guint32, Glib::ustring> &d_genre)
+{
+  xmlNodePtr artists = child->xmlChildrenNode;
+  while (artists)
+    {
+      if (xmlStrcasecmp(artists->name, BAD_CAST "artist") == 0) 
+        {
+          xmlChar* value = xmlGetProp(artists, BAD_CAST "id");
+          guint32 artist_id = atoi((char *)value);
+          xmlFree (value);
+          Glib::ustring artist_name;
+          Glib::ustring genre;
+          xmlNodePtr artist_property = artists->xmlChildrenNode;
+          while (artist_property)
+            {
+              if (xmlStrcasecmp(artist_property->name, BAD_CAST "dispname") == 0) 
+                {
+                  value = xmlNodeGetContent(artist_property);
+                  Glib::ustring 
+                    strvalue( reinterpret_cast<const char*>(value));
+                  artist_name = strvalue;
+                  xmlFree (value);
+                }
+              else if (xmlStrcasecmp(artist_property->name, BAD_CAST "genre") == 0)
+                {
+                  value = xmlNodeGetContent(artist_property);
+                  Glib::ustring 
+                    strvalue( reinterpret_cast<const char*>(value));
+                  genre = strvalue;
+                  xmlFree (value);
+                }
+
+              artist_property = artist_property->next;
+            }
+          d_artists[artist_id] = artist_name;
+          d_genre[artist_id] = genre;
+        }
+      artists = artists->next;
+    }
+}
+
+TrackList* TrackListLoader::parse(char *data, size_t len)
+{
+  xmlDocPtr doc;
+  xmlNodePtr root;
+
+  doc = xmlParseMemory(data, len);
+  if (!doc)
+    return NULL;
+
+  root = xmlDocGetRootElement(doc);
+
+  if (!root)
+    return NULL;
+  xmlNodePtr child = root->xmlChildrenNode;
+
+  std::map<guint32, Glib::ustring> artists;
+  std::map<guint32, Glib::ustring> genres;
+  std::map<guint32, guint32> albums;
+
+  TrackList *tracks = new TrackList();
+  while (child) 
+    {
+      if (xmlStrcasecmp(child->name, BAD_CAST "Tracks") == 0) 
+        parse_tracks(child, artists, genres, albums, tracks);
+      else if (xmlStrcasecmp(child->name, BAD_CAST "Albums") == 0) 
+        parse_albums(child, albums);
+      else if (xmlStrcasecmp(child->name, BAD_CAST "Artists") == 0) 
+        parse_artists(child, artists, genres);
+      child = child->next;
+    }
+  return tracks;
+}
+
+void TrackListLoader::check_album_license(guint32 album_id, sigc::slot<void, guint32, Glib::ustring, Glib::RefPtr<Gdk::Pixbuf>, double> success_slot, sigc::slot<void,guint32> failure_slot)
+{
+  Glib::ustring url = String::ucompose("http://www.jamendo.com/en/album/%1",
+                                       album_id);
+  Glib::RefPtr < Soup::Message > msg = Soup::Message::create ("GET", url);
+  web->queue_message (msg, 
+                      sigc::bind(sigc::mem_fun 
+                                 (this, 
+                                  &TrackListLoader::on_album_info_downloaded), 
+                                 album_id, success_slot, failure_slot));
+}
+
+void TrackListLoader::on_album_info_downloaded(Glib::RefPtr < Soup::Message > &msg,
+                                               guint32 album_id,
+                                               sigc::slot<void,guint32, Glib::ustring, Glib::RefPtr<Gdk::Pixbuf>, double> success, 
+                                               sigc::slot<void,guint32> failure)
+{
+  if (msg->property_status_code () == 200)
+    {
+      Soup::MessageBody body (msg->gobj ()->response_body);
+      body.set_accumulate (true);
+      Soup::Buffer buffer = body.flatten ();
+      const char *data = buffer.gobj ()->data;
+      guint len = buffer.gobj ()->length;
+      Glib::ustring license;
+      double rating = 0.0;
+      if (get_license_and_rating(data, len, license, rating))
+        {
+          std::map<Glib::ustring, Glib::RefPtr<Gdk::Pixbuf> >::iterator i;
+          i = license_images.find(license);
+          if (i != license_images.end())
+            {
+              success(album_id, license, (*i).second, rating);
+              return;
+            }
+          Glib::ustring u = String::ucompose("http://i.creativecommons.org/l/%1/88x31.png", license);
+          Glib::RefPtr < Soup::Message > m = Soup::Message::create ("GET", u);
+          web->queue_message (m, 
+                      sigc::bind(sigc::mem_fun 
+                                 (this, 
+                                  &TrackListLoader::on_license_image_downloaded), 
+                                 album_id, license, rating, success, failure));
+        }
+      else
+        failure(album_id);
+    }
+  else
+    {
+      failure(album_id);
+    }
+}
+
+void TrackListLoader::on_license_image_downloaded(Glib::RefPtr < Soup::Message > &msg, guint32 album_id, Glib::ustring license, double rating, sigc::slot<void,guint32, Glib::ustring, Glib::RefPtr<Gdk::Pixbuf>, double> success, sigc::slot<void,guint32> failure)
+{
+  if (msg->property_status_code () == 200)
+    {
+      Soup::MessageBody body (msg->gobj ()->response_body);
+      body.set_accumulate (true);
+      Soup::Buffer buffer = body.flatten ();
+      const char* data = buffer.gobj ()->data;
+      int len = buffer.gobj ()->length;
+      Glib::RefPtr<Gio::MemoryInputStream> is = Gio::MemoryInputStream::create();
+      is->add_data(data, len);
+      Glib::RefPtr<Gdk::Pixbuf> license_image = Gdk::Pixbuf::create_from_stream(is);
+      license_images[license] = license_image;
+      success(album_id, license, license_image, rating);
+    }
+  else
+    failure(album_id);
+}
+bool TrackListLoader::get_license_and_rating(const char *data, size_t len, Glib::ustring &license, double &rating)
+{
+  Glib::ustring match = 
+    "\\<a rel='license' href=\"http://creativecommons.org/licenses/";
+  std::vector < Glib::ustring > a =
+    Glib::Regex::split_simple (match, std::string(data));
+  if (a.size () <= 1)
+    return false;
+  std::vector < Glib::ustring > b = Glib::Regex::split_simple ("\"", a[1]);
+  if (b.size () <= 1)
+    return false;
+  if (b[0].size() > 100)
+    return false;
+  license = b[0];
+  match = "\\<td class='t'\\>Rating\\<\\/td\\> \\<td class='s'\\> ";
+  a = Glib::Regex::split_simple (match, std::string(data));
+  if (a.size () > 1)
+    {
+      b = Glib::Regex::split_simple ("\\<", a[1]);
+      if (b.size() > 0)
+        rating = atof(std::string(b[0]).c_str());
+    }
+  return true;
+}

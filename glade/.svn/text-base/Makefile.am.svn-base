@@ -1,0 +1,8 @@
+MAINTAINERCLEANFILES= Makefile.in
+
+gladedir = $(datadir)/$(PACKAGE_NAME)/glade
+glade_DATA = \
+vcma.gtk  \
+about-dialog.gtk
+
+EXTRA_DIST = $(glade_DATA)

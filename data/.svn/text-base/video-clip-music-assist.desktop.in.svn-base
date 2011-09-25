@@ -1,0 +1,11 @@
+[Desktop Entry]
+
+Name=Video Clip Music Assist
+GenericName=Jamendo Search Tool
+Comment=Find music for your homemade videos.
+
+Type=Application
+Exec=video-clip-music-assist
+Icon=video-clip-music-assist
+Terminal=false
+Categories=Network;Internet;Sound

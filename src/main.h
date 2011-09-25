@@ -1,0 +1,54 @@
+//  Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#ifndef TEMPLATIZER_MAIN_H
+#define TEMPLATIZER_MAIN_H
+
+// initialize the GUI and run the main loop; only one instance is ever
+// constructed so Main::instance is a convenience for retrieving it
+#include <string>
+namespace Templatizer
+{
+class TemplatizerWindow;
+class Main
+{
+ public:
+    Main(int &argc, char **&argv);
+    ~Main();
+
+    // singleton interface
+    static Main &instance();
+    
+    void start_main_loop();
+    void stop_main_loop();
+    bool iterate_main_loop();
+
+    static std::string get_glade_path();
+    static std::string get_data_path();
+    TemplatizerWindow* get_window();
+
+ private:
+    struct Impl;
+    Impl *impl;
+    TemplatizerWindow *window;
+
+    bool version_appears_on_the_command_line;
+};
+}
+
+
+#endif // TEMPLATIZER_MAIN_H

@@ -1,0 +1,17 @@
+
+- libgtkmm, libglibmm >= 3.0
+License     : LGPLv2+
+URL         : http://www.gtkmm.org
+
+- libsigc++ >= 2.0
+License     : LGPLv2+
+URL         : http://libsigc.sourceforge.net/
+
+- libsqlite3 >= 3.0.0
+License     : Public Domain
+URL         : http://www.sqlite.org/
+
+- gtksourceviewmm >= 3.0
+License     : LGPLv2+
+URL         : http://projects.gnome.org/gtksourceviewmm/
+

@@ -1,0 +1,9 @@
+
+app_datadir = $(datadir)/$(PACKAGE_NAME)/data
+app_data_DATA = video-clip-music-assist.png
+
+icondir=$(datadir)/icons/hicolor/64x64/apps
+icon_DATA=video-clip-music-assist.png
+
+MAINTAINERCLEANFILES=Makefile.in
+EXTRA_DIST=video-clip-music-assist.png

@@ -1,0 +1,76 @@
+// Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#include "track-list.h"
+#include "track.h"
+
+TrackList::TrackList(const TrackList& g)
+{
+  for (const_iterator it = g.get_tracks().begin(); 
+       it != g.get_tracks().end(); it++)
+    _tracks.push_back(new Track(*(*it)));
+}
+
+void TrackList::add(const TrackList *g)
+{
+  if (g)
+    {
+      for (const_iterator it = g->get_tracks().begin();
+           it != g->get_tracks().end(); it++)
+        _tracks.push_back(new Track(*(*it)));
+    }
+}
+
+TrackList::TrackList()
+{
+  _tracks.clear();
+}
+
+TrackList::~TrackList()
+{
+  remove_all_tracks();
+}
+
+void TrackList::remove_all_tracks()
+{
+  for (iterator it = _tracks.begin(); it != _tracks.end(); it++)
+    delete (*it);
+  _tracks.clear();
+}
+
+void TrackList::find_tracks_with_duration(guint32 min, guint32 max, TrackList &tracks) const
+{
+  guint32 count = 0;
+  for (const_iterator it = _tracks.begin(); it != _tracks.end(); it++)
+    {
+      if (count % 100)
+        searching.emit();
+      if ((*it)->get_duration() >= min && (*it)->get_duration() <= max)
+        tracks.push_back(*it);
+      count++;
+    }
+}
+
+void TrackList::get_album_ids(std::list<guint32> &album_ids) const
+{
+  for (const_iterator it = _tracks.begin(); it != _tracks.end(); it++)
+    {
+      if (std::find(album_ids.begin(), album_ids.end(), (*it)->get_album_id())
+          == album_ids.end())
+        album_ids.push_back((*it)->get_album_id());
+    }
+}

@@ -1,0 +1,11 @@
+[Desktop Entry]
+
+Name=Templatizer
+GenericName=
+Comment=Quickly start a new email from a template of your choosing.
+
+Type=Application
+Exec=templatizer
+Icon=templatizer
+Terminal=false
+Categories=Email

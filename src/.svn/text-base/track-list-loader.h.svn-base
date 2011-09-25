@@ -1,0 +1,71 @@
+//  Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#ifndef TRACK_LIST_LOADER_H
+#define TRACK_LIST_LOADER_H
+#include <gtkmm.h>
+#include <libsoupmm/session.h>
+#include <libsoupmm/message.h>
+#include <libsoupmm/uri.h>
+#include <libsoupmm/message-body.h>
+#include <libsoupmm/cookie-jar.h>
+#include <libsoup/soup.h>
+#include <zlib.h>
+#include <cstdio>
+#include <libxml/tree.h>
+#include <map>
+class TrackList;
+class Track;
+class TrackListLoader
+{
+    public:
+
+        //! Constructor.
+        TrackListLoader();
+
+	//! Destructor.
+        ~TrackListLoader();
+
+        void reset() {web->abort();};
+
+        void load(Glib::ustring url, TrackList *track_list, sigc::slot<void,TrackList*> success_slot, sigc::slot<void> failure_slot);
+
+        void check_album_license(guint32 album_id, sigc::slot<void, guint32, Glib::ustring, Glib::RefPtr<Gdk::Pixbuf>, double> success_slot, sigc::slot<void,guint32> failure_slot);
+
+    protected:
+    private:
+        TrackList *d_track_list;
+        Glib::RefPtr<Soup::Session> web;
+        std::map<Glib::ustring, Glib::RefPtr<Gdk::Pixbuf> > license_images;
+
+        //callbacks
+        void on_file_downloaded(Glib::RefPtr < Soup::Message > &msg, sigc::slot<void,TrackList*> success, sigc::slot<void> failure);
+        void on_album_info_downloaded(Glib::RefPtr < Soup::Message > &msg, guint32 album_id, sigc::slot<void,guint32, Glib::ustring, Glib::RefPtr<Gdk::Pixbuf>, double> success, sigc::slot<void,guint32> failure);
+
+        void on_license_image_downloaded(Glib::RefPtr < Soup::Message > &msg, guint32 album_id, Glib::ustring license, double rating, sigc::slot<void,guint32, Glib::ustring, Glib::RefPtr<Gdk::Pixbuf>, double> success, sigc::slot<void,guint32> failure);
+
+        //helpers
+        TrackList* load_data(const char *data, guint len);
+        void parse_tracks(xmlNodePtr child, std::map<guint32, Glib::ustring> &d_artists, std::map<guint32, Glib::ustring> &d_genre, std::map<guint32, guint32> &d_albums, TrackList *ts);
+        void parse_albums(xmlNodePtr child, std::map<guint32, guint32> &d_albums);
+        void parse_artists(xmlNodePtr child, std::map<guint32, Glib::ustring>& d_artists, std::map<guint32, Glib::ustring> &d_genre);
+        TrackList* parse(char *data, size_t len);
+
+        bool get_license_and_rating(const char *data, size_t len, Glib::ustring &license, double &rating);
+};
+
+#endif // TRACK_LIST_LOADER_H

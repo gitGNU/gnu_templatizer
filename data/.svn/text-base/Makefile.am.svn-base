@@ -1,0 +1,12 @@
+SUBDIRS=icons
+MAINTAINERCLEANFILES= Makefile.in
+
+EXTRA_DIST = README video-clip-music-assist.desktop.in $(app_data_DATA)
+
+DISTCLEANFILES = video-clip-music-assist.desktop
+desktopdir= $(datadir)/applications
+desktop_DATA= video-clip-music-assist.desktop
+
+app_datadir = $(datadir)/$(PACKAGE_NAME)/data
+app_data_DATA = 0hvof5.svg 1of5.svg 1hvof5.svg 2of5.svg 2hvof5.svg 3of5.svg \
+		3hvof5.svg 4of5.svg 4hvof5.svg 5of5.svg

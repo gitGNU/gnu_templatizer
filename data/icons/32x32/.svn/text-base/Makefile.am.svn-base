@@ -1,0 +1,4 @@
+icondir=$(datadir)/icons/hicolor/32x32/apps
+icon_DATA=video-clip-music-assist.png
+EXTRA_DIST=video-clip-music-assist.png
+MAINTAINERCLEANFILES=Makefile.in

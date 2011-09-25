@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk+" version="2.16"/>
+  <object class="GtkAboutDialog" id="dialog">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="border_width">5</property>
+    <property name="title" translatable="yes">About</property>
+    <property name="window_position">center</property>
+    <property name="type_hint">normal</property>
+    <property name="program_name">Templatizer</property>
+    <property name="comments" translatable="yes">
+Freedom is the most important 
+feature of this application.
+</property>
+    <property name="license" translatable="yes">The GNU General Public License version 3 or later at your option.</property>
+    <property name="authors">Máirín Duffy
+Ben Asselstine</property>
+    <property name="documenters">Ben Asselstine</property>
+    <property name="artists">Ben Asselstine</property>
+    <property name="license_type">gpl-3-0</property>
+    <child internal-child="vbox">
+      <object class="GtkBox" id="dialog-vbox1">
+        <property name="can_focus">False</property>
+        <child internal-child="action_area">
+          <object class="GtkButtonBox" id="dialog-action_area1">
+            <property name="can_focus">False</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="pack_type">end</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

@@ -1,0 +1,44 @@
+#   Copyright (C) 2011 Ben Asselstine
+# 
+#   This program is free software; you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation; either version 3 of the License, or
+#   (at your option) any later version.
+# 
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU Library General Public License for more details.
+# 
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+#   02110-1301, USA.
+MAINTAINERCLEANFILES= Makefile.in
+
+bin_PROGRAMS = video-clip-music-assist
+noinst_LIBRARIES = libgui.a libmodel.a
+
+video_clip_music_assist_SOURCES = main.cpp main.h vcma-main.cpp
+video_clip_music_assist_LDADD = libgui.a libmodel.a $(GTKMM_LIBS) $(GCONFMM_LIBS) $(GIOMM_LIBS) $(LIBSIGC_LIBS) $(LIBSOUPMM_LIBS) $(LIBXML_LIBS) $(GSTREAMER_LIBS)
+
+libgui_a_SOURCES = \
+    vcma-window.cpp vcma-window.h  \
+    ucompose.hpp
+
+libmodel_a_SOURCES = \
+    track.cpp track.h \
+    track-list.cpp track-list.h \
+    track-list-loader.cpp track-list-loader.h
+
+INCLUDES = \
+   $(GTKMM_CFLAGS) \
+   $(LIBXML_CFLAGS) \
+   $(GCONFMM_CFLAGS) \
+   $(GIOMM_CFLAGS) \
+   $(LIBSOUPMM_CFLAGS) \
+   $(LIBSIGC_CFLAGS) \
+   $(GSTREAMER_CFLAGS) \
+   -DVCMA_DATADIR='"$(VCMA_DATADIR)"' 
+
+AM_CXXFLAGS = -Wall

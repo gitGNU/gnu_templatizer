@@ -1,0 +1,57 @@
+//  Copyright (C) 2011 Ben Asselstine
+//
+//  This program is free software; you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation; either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Library General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program; if not, write to the Free Software
+//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 
+//  02110-1301, USA.
+
+#ifndef TRACK_H
+#define TRACK_H
+#include <gtkmm.h>
+class Track
+{
+    public:
+
+        Track(guint32 duration, Glib::ustring genre, Glib::ustring song_title, Glib::ustring artist_name, guint32 album_id, guint32 track_id, Glib::ustring license = "", double rating = 0.0);
+
+	//! Copy constructor.
+        Track(const Track&);
+
+        guint32 get_duration() const {return d_duration;};
+        Glib::ustring get_genre() const {return d_genre;};
+        Glib::ustring get_song_title() const {return d_song_title;};
+        Glib::ustring get_artist_name() const {return d_artist_name;};
+        guint32 get_album_id() const {return d_album_id;};
+        guint32 get_track_id() const {return d_track_id;};
+        Glib::ustring get_license() const {return d_license;};
+        void set_license(Glib::ustring l) {d_license = l;};
+        double get_album_rating() const {return d_rating;};
+        void set_album_rating(double rating) {d_rating= rating;};
+
+	//! Destructor.
+        ~Track();
+
+    protected:
+    private:
+        guint32 d_duration;
+        Glib::ustring d_genre;
+        Glib::ustring d_song_title;
+        Glib::ustring d_artist_name;
+        guint32 d_album_id;
+        guint32 d_track_id;
+        Glib::ustring d_license;
+        double d_rating;
+
+};
+
+#endif // TRACK_H
