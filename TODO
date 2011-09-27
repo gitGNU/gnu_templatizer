@@ -5,4 +5,4 @@ remember the width of the pane for future runs.
 remember the size of the window for future runs.
 add translations
 prevent same user from opening two sessions of templatizer.
-start templatizer through dbus, a-la gedit.
+start templatizer through dbus, a-la gedit.  Gtk::Application
