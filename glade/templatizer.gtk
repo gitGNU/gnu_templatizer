@@ -268,7 +268,7 @@
                                     <property name="margin_bottom">10</property>
                                     <property name="invisible_char">●</property>
                                     <property name="invisible_char_set">True</property>
-                                    <property name="secondary_icon_stock">gtk-find</property>
+                                    <property name="secondary_icon_stock">gtk-missing-image</property>
                                     <property name="secondary_icon_tooltip_text" translatable="yes">Search</property>
                                   </object>
                                   <packing>

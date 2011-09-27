@@ -143,6 +143,7 @@ TemplatizerWindow::TemplatizerWindow(BaseObjectType* baseObject,
                                    "  </popup>"
                                    "</ui>");
     treeview_context_menu = dynamic_cast<Gtk::Menu*>(ui_manager->get_widget("/PopupMenu")); 
+    search_entry->property_secondary_icon_pixbuf() = Gtk::IconTheme::get_default()->load_icon("edit-find-symbolic", 16, Gtk::ICON_LOOKUP_GENERIC_FALLBACK);
 }
 
 void TemplatizerWindow::on_treeview_clicked(GdkEventButton* event)
@@ -484,14 +485,11 @@ void TemplatizerWindow::draw_search_indicator()
   if (search_entry->get_text() != "" || search_entry->has_focus())
     return;
   Pango::AttrList attrs;
-  Pango::Attribute weight =  
-    Pango::Attribute::create_attr_weight(Pango::WEIGHT_BOLD);
   Pango::Attribute fg =  Pango::Attribute::create_attr_foreground(0.4*65535.0, 
                                                                   0.4*65535.0, 
                                                                   0.4*65535.0);
   Pango::Attribute italic =  
     Pango::Attribute::create_attr_style(Pango::STYLE_ITALIC);
-  attrs.insert(weight);
   attrs.insert(fg);
   attrs.insert(italic);
   Glib::RefPtr<Pango::Layout> layout = search_entry->get_layout();
