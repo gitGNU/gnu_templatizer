@@ -10,7 +10,7 @@ dnl        License version 3, or (at your option) any later version.
 dnl
 dnl
 AC_PREREQ(2.59)
-AC_INIT([templatizer], [0.0.1], [bing at nym.hush.com], [templatizer])
+AC_INIT([templatizer], [0.0.2], [bing at nym.hush.com], [templatizer])
 AC_CONFIG_SRCDIR([config.h.in])
 AM_CONFIG_HEADER(config.h)
 

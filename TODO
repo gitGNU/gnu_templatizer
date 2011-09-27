@@ -4,3 +4,4 @@ template data is limited to 32k.  maybe use blobs in the db.
 remember the width of the pane for future runs.
 remember the size of the window for future runs.
 add translations
+prevent same user from opening two sessions of templatizer.
