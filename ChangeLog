@@ -8,3 +8,6 @@
 - now searching the templates in the background.
 - now disabling search when we start a new template.
 
+* Tue Sep 25 2011  Ben Asselstine <bing@nym.hush.com>
+- unbolding the Search text on the search entry.  now it just italicized.
+- now using the symbolic find icon instead of the stock find icon.
