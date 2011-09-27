@@ -5,8 +5,8 @@ Version: @VERSION@
 Release: 1
 License: GPL3+
 Group: Applications/Email
-Source: http://www.asselstine.com/software/%{name}/%{name}-%{version}.tar.gz
-URL: http://www.asselstine.com/software/%{name}
+Source: http://download.savannah.gnu.org/releases/%{name}/%{name}-%{version}.tar.gz
+URL: http://templatizer.nongnu.org/
 BuildRoot: %{_tmppath}/%{name}-root
 Requires: gtkmm30 >= 3.0, libsigc++20 >= 2.0, sqlite >= 3.0.0, gtksourceviewmm3 >= 3.0
 BuildRequires: pkgconfig
