@@ -1,4 +1,11 @@
-* Mon Sep 24 2011 Ben Asselstine <bing@nym.hush.com>
+* Thu Sep 29 2011  Ben Asselstine <bing@nym.hush.com>
+- replaced wonky popup menu code with friendlier gtkbuilder code.
+
+* Tue Sep 27 2011  Ben Asselstine <bing@nym.hush.com>
+- unbolding the Search text on the search entry.  now it just italicized.
+- now using the symbolic find icon instead of the stock find icon.
+
+* Mon Sep 26 2011 Ben Asselstine <bing@nym.hush.com>
 - ellipsizing template names in treeview.
 - fixed bug wrt sometimes-crash on exit.
 - fixed bug wrt textview growing horizontally.
@@ -8,6 +15,3 @@
 - now searching the templates in the background.
 - now disabling search when we start a new template.
 
-* Tue Sep 25 2011  Ben Asselstine <bing@nym.hush.com>
-- unbolding the Search text on the search entry.  now it just italicized.
-- now using the symbolic find icon instead of the stock find icon.
