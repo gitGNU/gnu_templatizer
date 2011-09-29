@@ -22,6 +22,7 @@ glade_DATA = \
 templatizer.gtk  \
 about-dialog.gtk \
 new-template-dialog.gtk \
-delete-confirmation-dialog.gtk
+delete-confirmation-dialog.gtk \
+treeview-popup-menu.gtk
 
 EXTRA_DIST = $(glade_DATA)

@@ -120,30 +120,21 @@ TemplatizerWindow::TemplatizerWindow(BaseObjectType* baseObject,
   scrolled_window->show_all();
   textview->set_wrap_mode(Gtk::WRAP_WORD);
     
-  context_actions = Gtk::ActionGroup::create();
-  context_actions->add(Gtk::Action::create("ContextNew", 
-                                           N_("New Template ...")),
-                       sigc::mem_fun(*this, 
-                                     &TemplatizerWindow::on_new_clicked));
-  context_actions->add(Gtk::Action::create("ContextDelete", N_("Delete")),
-                       sigc::mem_fun(*this, 
-                                     &TemplatizerWindow::on_delete_clicked));
-  context_actions->add(Gtk::Action::create("ContextUse", 
-                                           N_("Use in New Email ...")),
-                       sigc::mem_fun(*this, 
-                                     &TemplatizerWindow::on_use_clicked));
-    ui_manager= Gtk::UIManager::create();
-    ui_manager->insert_action_group(context_actions);
 
-    ui_manager->add_ui_from_string("<ui>"
-                                   "  <popup name='PopupMenu'>"
-                                   "    <menuitem action='ContextNew'/>"
-                                   "    <menuitem action='ContextDelete'/>"
-                                   "    <menuitem action='ContextUse'/>"
-                                   "  </popup>"
-                                   "</ui>");
-    treeview_context_menu = dynamic_cast<Gtk::Menu*>(ui_manager->get_widget("/PopupMenu")); 
-    search_entry->property_secondary_icon_pixbuf() = Gtk::IconTheme::get_default()->load_icon("edit-find-symbolic", 16, Gtk::ICON_LOOKUP_GENERIC_FALLBACK);
+  Glib::RefPtr<Gtk::Builder> popup = 
+    Gtk::Builder::create_from_file(Main::get_glade_path() + 
+                                   "/treeview-popup-menu.gtk");
+  context_actions = Glib::RefPtr<Gtk::ActionGroup>::cast_dynamic(popup->get_object("context_actions"));
+  context_actions->get_action("new_action")->signal_activate().connect
+     (sigc::mem_fun(*this, &TemplatizerWindow::on_new_clicked));
+  context_actions->get_action("delete_action")->signal_activate().connect
+     (sigc::mem_fun(*this, &TemplatizerWindow::on_delete_clicked));
+  context_actions->get_action("use_action")->signal_activate().connect
+     (sigc::mem_fun(*this, &TemplatizerWindow::on_use_clicked));
+
+  popup->get_widget("popup_menu", treeview_context_menu);
+
+  search_entry->property_secondary_icon_pixbuf() = Gtk::IconTheme::get_default()->load_icon("edit-find-symbolic", 16, Gtk::ICON_LOOKUP_GENERIC_FALLBACK);
 }
 
 void TemplatizerWindow::on_treeview_clicked(GdkEventButton* event)

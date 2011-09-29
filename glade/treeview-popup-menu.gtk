@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <!-- interface-requires gtk+ 3.0 -->
+  <object class="GtkActionGroup" id="context_actions">
+    <child>
+      <object class="GtkAction" id="new_action">
+        <property name="label" translatable="yes">New Template ...</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkAction" id="delete_action">
+        <property name="label" translatable="yes">Delete</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkAction" id="use_action">
+        <property name="label" translatable="yes">Use in New Email ...</property>
+      </object>
+    </child>
+  </object>
+  <object class="GtkMenu" id="popup_menu">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <child>
+      <object class="GtkImageMenuItem" id="new_menuitem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="related_action">new_action</property>
+        <property name="use_stock">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkImageMenuItem" id="delete_menuitem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="related_action">delete_action</property>
+        <property name="use_stock">True</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkImageMenuItem" id="use_menuitem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="related_action">use_action</property>
+        <property name="use_stock">True</property>
+      </object>
+    </child>
+  </object>
+</interface>
